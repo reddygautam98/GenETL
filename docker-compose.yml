@@ -1,0 +1,50 @@
+# GenETL Simple Docker Setup
+# Database and Redis containers for the GenETL project
+
+services:
+  # PostgreSQL Database
+  genetl-postgres:
+    image: postgres:15-alpine
+    container_name: genetl-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: genetl
+      POSTGRES_PASSWORD: genetl_pass
+      POSTGRES_DB: genetl_warehouse
+    ports:
+      - "5450:5432"
+    volumes:
+      - genetl_postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U genetl -d genetl_warehouse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  genetl-redis:
+    image: redis:7-alpine
+    container_name: genetl-redis
+    restart: unless-stopped
+    ports:
+      - "6390:6379"
+    volumes:
+      - genetl_redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  genetl_postgres_data:
+    name: genetl_postgres_data
+  genetl_redis_data:
+    name: genetl_redis_data
+
+networks:
+  genetl-net:
+    name: genetl-network
+    driver: bridge

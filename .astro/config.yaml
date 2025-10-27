@@ -1,0 +1,7 @@
+project:
+    name: gen-etl
+    
+# Local development configuration  
+local:
+  ports:
+    webserver: 8090

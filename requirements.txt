@@ -1,0 +1,9 @@
+# Astro Runtime includes the following pre-installed providers packages: https://www.astronomer.io/docs/astro/runtime-image-architecture#provider-packages
+
+# Data processing and ETL dependencies
+pandas
+requests
+psycopg2-binary
+SQLAlchemy>=2.0
+great-expectations
+redis>=5.0.0
