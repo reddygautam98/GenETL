@@ -4,4 +4,5 @@ project:
 # Local development configuration  
 local:
   ports:
-    webserver: 8090
+    webserver: 8095
+    postgres: 5444

@@ -1,0 +1,332 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint-and-format:
+    runs-on: ubuntu-latest
+    name: Code Quality Checks
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+    
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black isort mypy
+        pip install -r requirements.txt
+    
+    - name: Format check with Black
+      run: black --check --diff .
+    
+    - name: Import sorting check with isort
+      run: isort --check-only --diff .
+    
+    - name: Lint with flake8
+      run: |
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=100 --statistics
+    
+    - name: Type checking with mypy
+      run: mypy . --ignore-missing-imports --no-strict-optional
+
+  test:
+    runs-on: ubuntu-latest
+    name: Run Tests
+    needs: lint-and-format
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: genetl_pass
+          POSTGRES_USER: genetl
+          POSTGRES_DB: genetl_warehouse
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5450:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6390:6379
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+    
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+    
+    - name: Wait for services
+      run: |
+        # Wait for PostgreSQL
+        for i in {1..30}; do
+          if pg_isready -h localhost -p 5450 -U genetl; then break; fi
+          sleep 1
+        done
+        
+        # Wait for Redis
+        for i in {1..30}; do
+          if redis-cli -h localhost -p 6390 ping; then break; fi
+          sleep 1
+        done
+    
+    - name: Set up test database
+      run: |
+        PGPASSWORD=genetl_pass psql -h localhost -p 5450 -U genetl -d genetl_warehouse -c "
+        CREATE SCHEMA IF NOT EXISTS warehouse;
+        
+        CREATE TABLE IF NOT EXISTS warehouse.products (
+            product_id SERIAL PRIMARY KEY,
+            name VARCHAR(255),
+            category VARCHAR(100),
+            price DECIMAL(10,2),
+            rating DECIMAL(3,2),
+            stock_quantity INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Insert sample data for testing
+        INSERT INTO warehouse.products (name, category, price, rating, stock_quantity) VALUES
+        ('Sample Product 1', 'Electronics', 99.99, 4.5, 100),
+        ('Sample Product 2', 'Books', 15.99, 4.0, 50),
+        ('Sample Product 3', 'Clothing', 29.99, 3.8, 75),
+        ('Sample Product 4', 'Electronics', 199.99, 4.8, 25),
+        ('Sample Product 5', 'Books', 12.99, 4.2, 80)
+        ON CONFLICT DO NOTHING;
+        "
+    
+    - name: Set environment variables
+      run: |
+        echo "POSTGRES_HOST=localhost" >> $GITHUB_ENV
+        echo "POSTGRES_PORT=5450" >> $GITHUB_ENV
+        echo "POSTGRES_DB=genetl_warehouse" >> $GITHUB_ENV
+        echo "POSTGRES_USER=genetl" >> $GITHUB_ENV
+        echo "POSTGRES_PASSWORD=genetl_pass" >> $GITHUB_ENV
+        echo "REDIS_HOST=localhost" >> $GITHUB_ENV
+        echo "REDIS_PORT=6390" >> $GITHUB_ENV
+    
+    - name: Run AI Basic Tests
+      run: python test_ai_basic.py
+    
+    - name: Run pytest
+      run: pytest --cov=. --cov-report=xml --cov-report=html
+      if: always()
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  docker-build:
+    runs-on: ubuntu-latest
+    name: Docker Build Test
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Test Docker Compose Build
+      run: |
+        # Test that docker-compose builds successfully
+        docker-compose config
+        docker-compose build --no-cache
+    
+    - name: Test Container Startup
+      run: |
+        # Start containers
+        docker-compose up -d
+        
+        # Wait for services to be ready
+        sleep 30
+        
+        # Check if containers are running
+        docker-compose ps
+        
+        # Test database connectivity
+        docker-compose exec -T genetl-postgres pg_isready -U genetl
+        
+        # Test Redis connectivity
+        docker-compose exec -T genetl-redis redis-cli ping
+        
+        # Cleanup
+        docker-compose down
+
+  security-scan:
+    runs-on: ubuntu-latest
+    name: Security Scanning
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+    
+    - name: Install security tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety bandit
+    
+    - name: Run safety check
+      run: safety check --json || true
+    
+    - name: Run bandit security scan
+      run: bandit -r . -f json || true
+    
+    - name: Run Docker security scan with Trivy
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  documentation:
+    runs-on: ubuntu-latest
+    name: Documentation Check
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Check documentation files
+      run: |
+        # Check if required documentation files exist
+        files=(
+          "README.md"
+          "CONTRIBUTING.md" 
+          "LICENSE"
+          "CHANGELOG.md"
+          "SECURITY.md"
+        )
+        
+        for file in "${files[@]}"; do
+          if [ ! -f "$file" ]; then
+            echo "❌ Missing required documentation file: $file"
+            exit 1
+          else
+            echo "✅ Found documentation file: $file"
+          fi
+        done
+    
+    - name: Check links in documentation
+      uses: gaurav-nelson/github-action-markdown-link-check@v1
+      with:
+        use-quiet-mode: 'yes'
+        use-verbose-mode: 'yes'
+        config-file: '.github/mlc_config.json'
+        folder-path: '.'
+        max-depth: 2
+
+  release:
+    runs-on: ubuntu-latest
+    name: Release
+    needs: [lint-and-format, test, docker-build, security-scan, documentation]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+    
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Extract latest changes from CHANGELOG.md
+        sed -n '/## \[Unreleased\]/,/## \[/p' CHANGELOG.md | sed '$d' > latest_changes.md
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        cat latest_changes.md >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+    
+    - name: Create Release
+      uses: actions/create-release@v1
+      if: contains(github.event.head_commit.message, '[release]')
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.run_number }}
+        release_name: GenETL Release v${{ github.run_number }}
+        body: ${{ steps.changelog.outputs.changelog }}
+        draft: false
+        prerelease: false
+
+  notify:
+    runs-on: ubuntu-latest
+    name: Notify Results
+    needs: [lint-and-format, test, docker-build, security-scan, documentation]
+    if: always()
+    
+    steps:
+    - name: Notify Success
+      if: needs.test.result == 'success'
+      run: |
+        echo "✅ All tests passed successfully!"
+        echo "🚀 GenETL AI platform is ready for deployment"
+    
+    - name: Notify Failure
+      if: failure()
+      run: |
+        echo "❌ Pipeline failed. Check the logs for details."
+        echo "🔍 Please review and fix the issues before merging."

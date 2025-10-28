@@ -1,11 +1,131 @@
-.git
-.env
-.DS_Store
-airflow_settings.yaml
+# GenETL Project - Comprehensive .gitignore
+
+# Python
 __pycache__/
-astro
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+.env
 .venv
-airflow-webserver.pid
-webserver_config.py
-airflow.cfg
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.virtualenv/
+
+# IDE & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Airflow
+logs/
 airflow.db
+airflow.cfg
+webserver_config.py
+airflow-webserver.pid
+standalone_admin_password.txt
+airflow_settings.yaml
+astro
+
+# Docker
+.dockerignore
+*.log
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.development
+
+# AI/ML Models & Data
+models/
+*.pkl
+*.joblib
+*.h5
+*.model
+data/raw/
+data/processed/
+data/external/
+
+# Reports & Outputs
+reports/
+*.html
+*.pdf
+ai_demo_report_*.html
+AI_Business_Intelligence_Report_*.html
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Secrets & Credentials
+secrets/
+credentials/
+*.pem
+*.key
+*.crt
+*.p12
+
+# GenETL specific test files
+check_db_schema.py
+test_ai_*.py
+demo_ai_*.py
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Git
+.git
