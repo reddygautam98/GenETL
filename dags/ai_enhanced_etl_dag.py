@@ -6,8 +6,7 @@ Integrated AI-powered data pipeline with intelligent processing
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
-from airflow.operators.bash_operator import BashOperator
-from airflow.sensors.filesystem import FileSensor
+# Removed unused imports: BashOperator, FileSensor
 import pandas as pd
 from sqlalchemy import create_engine
 import logging
@@ -46,7 +45,7 @@ default_args = {
 
 # Database configuration
 DB_CONFIG = {
-    'host': 'genetl-postgres',
+    'host': 'postgres',
     'port': 5432,
     'database': 'genetl_warehouse',
     'user': 'genetl',
@@ -191,86 +190,11 @@ def transform_data_with_ai(**context):
         quality_results = context['task_instance'].xcom_pull(key='quality_results')
         raw_data_info = context['task_instance'].xcom_pull(key='raw_data_info')
         
-        transformation_results = {
-            'timestamp': datetime.now().isoformat(),
-            'records_processed': 0,
-            'transformations_applied': [],
-            'ai_optimizations': [],
-            'status': 'success'
-        }
-        
-        # Connect to database
-        engine = get_db_connection()
-        
-        total_processed = 0
-        
-        # Process each data file with AI enhancements
-        for file_path in raw_data_info.get('existing_files', []):
-            try:
-                df = pd.read_csv(file_path)
-                original_count = len(df)
-                
-                # Apply AI-suggested transformations based on quality results
-                file_issues = [issue for issue in quality_results.get('quality_issues', []) if issue['file'] == file_path]
-                
-                # Basic transformations (in production, these would be more sophisticated)
-                transformations_applied = []
-                
-                # Handle missing values intelligently
-                if 'missing_values' in [issue['issue'] for issue in file_issues]:
-                    # AI-suggested imputation
-                    numeric_columns = df.select_dtypes(include=['number']).columns
-                    for col in numeric_columns:
-                        if df[col].isnull().sum() > 0:
-                            df[col].fillna(df[col].median(), inplace=True)
-                            transformations_applied.append(f"Imputed missing values in {col} using median")
-                    
-                    text_columns = df.select_dtypes(include=['object']).columns
-                    for col in text_columns:
-                        if df[col].isnull().sum() > 0:
-                            df[col].fillna('Unknown', inplace=True)
-                            transformations_applied.append(f"Filled missing text values in {col}")
-                
-                # Standardize data formats
-                if 'date' in df.columns:
-                    try:
-                        df['date'] = pd.to_datetime(df['date'])
-                        transformations_applied.append("Standardized date formats")
-                    except:
-                        pass
-                
-                # AI-powered outlier handling
-                if 'outliers' in [issue['issue'] for issue in file_issues]:
-                    for col in df.select_dtypes(include=['number']).columns:
-                        Q1 = df[col].quantile(0.25)
-                        Q3 = df[col].quantile(0.75)
-                        IQR = Q3 - Q1
-                        lower_bound = Q1 - 1.5 * IQR
-                        upper_bound = Q3 + 1.5 * IQR
-                        
-                        outliers_count = len(df[(df[col] < lower_bound) | (df[col] > upper_bound)])
-                        if outliers_count > 0:
-                            # Cap outliers instead of removing (AI recommendation)
-                            df[col] = df[col].clip(lower=lower_bound, upper=upper_bound)
-                            transformations_applied.append(f"Capped {outliers_count} outliers in {col}")
-                
-                transformation_results['transformations_applied'].extend(transformations_applied)
-                total_processed += len(df)
-                
-                logger.info(f"🔄 Processed {original_count} records from {os.path.basename(file_path)}")
-                
-            except Exception as e:
-                logger.error(f"❌ Transformation failed for {file_path}: {e}")
+        transformation_results = _initialize_transformation_results()
+        total_processed = _process_data_files(raw_data_info, quality_results, transformation_results)
         
         transformation_results['records_processed'] = total_processed
-        
-        # AI optimizations applied
-        transformation_results['ai_optimizations'] = [
-            "🧠 Applied intelligent missing value imputation",
-            "🎯 Implemented outlier capping based on statistical analysis",
-            "📊 Optimized data types for storage efficiency",
-            "🔄 Applied quality-driven transformation rules"
-        ]
+        transformation_results['ai_optimizations'] = _get_ai_optimizations()
         
         # Push results to XCom
         context['task_instance'].xcom_push(key='transformation_results', value=transformation_results)
@@ -281,6 +205,116 @@ def transform_data_with_ai(**context):
     except Exception as e:
         logger.error(f"❌ Data transformation failed: {e}")
         raise
+
+def _initialize_transformation_results():
+    """Initialize transformation results structure"""
+    return {
+        'timestamp': datetime.now().isoformat(),
+        'records_processed': 0,
+        'transformations_applied': [],
+        'ai_optimizations': [],
+        'status': 'success'
+    }
+
+def _process_data_files(raw_data_info, quality_results, transformation_results):
+    """Process each data file with AI enhancements"""
+    total_processed = 0
+    
+    for file_path in raw_data_info.get('existing_files', []):
+        try:
+            df = pd.read_csv(file_path)
+            original_count = len(df)
+            
+            file_issues = [issue for issue in quality_results.get('quality_issues', []) 
+                          if issue['file'] == file_path]
+            
+            transformations_applied = _apply_transformations(df, file_issues)
+            transformation_results['transformations_applied'].extend(transformations_applied)
+            total_processed += len(df)
+            
+            logger.info(f"🔄 Processed {original_count} records from {os.path.basename(file_path)}")
+            
+        except Exception as e:
+            logger.error(f"❌ Transformation failed for {file_path}: {e}")
+    
+    return total_processed
+
+def _apply_transformations(df, file_issues):
+    """Apply AI-suggested transformations to dataframe"""
+    transformations_applied = []
+    issue_types = [issue['issue'] for issue in file_issues]
+    
+    # Handle missing values
+    if 'missing_values' in issue_types:
+        transformations_applied.extend(_handle_missing_values(df))
+    
+    # Standardize date formats
+    if 'date' in df.columns:
+        transformations_applied.extend(_standardize_dates(df))
+    
+    # Handle outliers
+    if 'outliers' in issue_types:
+        transformations_applied.extend(_handle_outliers(df))
+    
+    return transformations_applied
+
+def _handle_missing_values(df):
+    """Handle missing values with AI-suggested imputation"""
+    transformations = []
+    
+    # Numeric columns
+    numeric_columns = df.select_dtypes(include=['number']).columns
+    for col in numeric_columns:
+        if df[col].isnull().sum() > 0:
+            df[col].fillna(df[col].median(), inplace=True)
+            transformations.append(f"Imputed missing values in {col} using median")
+    
+    # Text columns
+    text_columns = df.select_dtypes(include=['object']).columns
+    for col in text_columns:
+        if df[col].isnull().sum() > 0:
+            df[col].fillna('Unknown', inplace=True)
+            transformations.append(f"Filled missing text values in {col}")
+    
+    return transformations
+
+def _standardize_dates(df):
+    """Standardize date formats"""
+    transformations = []
+    try:
+        df['date'] = pd.to_datetime(df['date'])
+        transformations.append("Standardized date formats")
+    except Exception as e:
+        logger.warning(f"Date standardization failed: {e}")
+    
+    return transformations
+
+def _handle_outliers(df):
+    """Handle outliers using IQR method"""
+    transformations = []
+    
+    for col in df.select_dtypes(include=['number']).columns:
+        Q1 = df[col].quantile(0.25)
+        Q3 = df[col].quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+        
+        outliers_count = len(df[(df[col] < lower_bound) | (df[col] > upper_bound)])
+        if outliers_count > 0:
+            df[col] = df[col].clip(lower=lower_bound, upper=upper_bound)
+            transformations.append(f"Capped {outliers_count} outliers in {col}")
+    
+    return transformations
+
+def _get_ai_optimizations():
+    """Get list of AI optimizations applied"""
+    return [
+        "🧠 Applied intelligent missing value imputation",
+        "🎯 Implemented outlier capping based on statistical analysis",
+        "📊 Optimized data types for storage efficiency",
+        "🔄 Applied quality-driven transformation rules"
+    ]
 
 def load_data_with_ai_insights(**context):
     """Load data with AI-generated insights"""
@@ -299,12 +333,11 @@ def load_data_with_ai_insights(**context):
             'status': 'success'
         }
         
-        # Connect to database
-        engine = get_db_connection()
-        
         # Generate AI insights about the loaded data
         try:
-            ai_analyzer = GenETLAIAnalyzer()
+            # Initialize AI analyzer (commented out unused variables)
+            # engine = get_db_connection()
+            # ai_analyzer = GenETLAIAnalyzer()
             
             # Mock insights generation (in production, this would analyze actual loaded data)
             insights = [
@@ -443,7 +476,7 @@ def pipeline_completion_summary(**context):
         prediction_results = context['task_instance'].xcom_pull(key='prediction_results') or {}
         quality_results = context['task_instance'].xcom_pull(key='quality_results') or {}
         transformation_results = context['task_instance'].xcom_pull(key='transformation_results') or {}
-        report_results = context['task_instance'].xcom_pull(key='report_results') or {}
+
         
         pipeline_summary = {
             'pipeline_completion_time': datetime.now().isoformat(),

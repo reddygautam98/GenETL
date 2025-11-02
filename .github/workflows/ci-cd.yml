@@ -58,7 +58,7 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_PASSWORD: genetl_pass
+          POSTGRES_PASSWORD: test_password_ci
           POSTGRES_USER: genetl
           POSTGRES_DB: genetl_warehouse
         options: >-
@@ -116,8 +116,10 @@ jobs:
         done
     
     - name: Set up test database
+      env:
+        PGPASSWORD: ${{ env.POSTGRES_PASSWORD }}
       run: |
-        PGPASSWORD=genetl_pass psql -h localhost -p 5450 -U genetl -d genetl_warehouse -c "
+        psql -h localhost -p 5450 -U genetl -d genetl_warehouse -c "
         CREATE SCHEMA IF NOT EXISTS warehouse;
         
         CREATE TABLE IF NOT EXISTS warehouse.products (
@@ -146,7 +148,7 @@ jobs:
         echo "POSTGRES_PORT=5450" >> $GITHUB_ENV
         echo "POSTGRES_DB=genetl_warehouse" >> $GITHUB_ENV
         echo "POSTGRES_USER=genetl" >> $GITHUB_ENV
-        echo "POSTGRES_PASSWORD=genetl_pass" >> $GITHUB_ENV
+        echo "POSTGRES_PASSWORD=test_password_ci" >> $GITHUB_ENV
         echo "REDIS_HOST=localhost" >> $GITHUB_ENV
         echo "REDIS_PORT=6390" >> $GITHUB_ENV
     
@@ -178,29 +180,34 @@ jobs:
     
     - name: Test Docker Compose Build
       run: |
-        # Test that docker-compose builds successfully
-        docker-compose config
-        docker-compose build --no-cache
+        # Test that docker-compose builds successfully with CI configuration
+        docker-compose -f docker-compose.ci.yml config
+        docker-compose -f docker-compose.ci.yml build --no-cache
     
     - name: Test Container Startup
+      env:
+        POSTGRES_USER: genetl
+        POSTGRES_PASSWORD: test_password_ci
+        POSTGRES_DB: genetl_warehouse
+        AIRFLOW__CORE__FERNET_KEY: zP0KVBMjQ0zIbD3fkGjHxhjNZNUHq2okB2Lp3fkF1RY=
       run: |
-        # Start containers
-        docker-compose up -d
+        # Start containers with CI configuration
+        docker-compose -f docker-compose.ci.yml up -d
         
         # Wait for services to be ready
-        sleep 30
+        sleep 60
         
         # Check if containers are running
-        docker-compose ps
+        docker-compose -f docker-compose.ci.yml ps
         
         # Test database connectivity
-        docker-compose exec -T genetl-postgres pg_isready -U genetl
+        docker-compose -f docker-compose.ci.yml exec -T genetl-postgres pg_isready -U genetl -d genetl_warehouse
         
         # Test Redis connectivity
-        docker-compose exec -T genetl-redis redis-cli ping
+        docker-compose -f docker-compose.ci.yml exec -T genetl-redis redis-cli ping
         
         # Cleanup
-        docker-compose down
+        docker-compose -f docker-compose.ci.yml down
 
   security-scan:
     runs-on: ubuntu-latest

@@ -1,0 +1,7 @@
+# System packages to install via apt-get
+# Add system dependencies here, one per line
+git
+curl
+wget
+unzip
+vim

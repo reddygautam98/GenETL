@@ -1,8 +1,9 @@
 project:
-    name: gen-etl
-    
+  name: genetl-ai-platform
+
 # Local development configuration  
 local:
   ports:
-    webserver: 8095
-    postgres: 5444
+    webserver: 8080
+    postgres: 5450
+  env_file: .env
