@@ -1,9 +1,9 @@
-# GenETL Complete Docker Setup
-# Full stack with Airflow, Database and Redis containers
+# GenETL Optimized Docker Setup
+# Faster loading with simplified health checks
 
 x-airflow-common:
   &airflow-common
-  build: .
+  image: apache/airflow:2.7.1-python3.11
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
@@ -11,7 +11,7 @@ x-airflow-common:
     AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}/${POSTGRES_DB}
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}/${POSTGRES_DB}
     AIRFLOW__CELERY__BROKER_URL: redis://:@genetl-redis:6379/0
-    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
@@ -20,7 +20,6 @@ x-airflow-common:
     # SQLAlchemy compatibility fix
     AIRFLOW__CORE__ENABLE_XCOM_PICKLING: 'false'
     AIRFLOW__CORE__ALLOWED_DESERIALIZATION_CLASSES: 'airflow.*'
-    # Force SQLAlchemy version compatibility
     SQLALCHEMY_SILENCE_UBER_WARNING: '1'
   volumes:
     - ./dags:/opt/airflow/dags
@@ -80,42 +79,6 @@ services:
     networks:
       - genetl-net
 
-  # Airflow Webserver
-  airflow-webserver:
-    <<: *airflow-common
-    container_name: genetl-airflow-webserver
-    command: webserver
-    ports:
-      - "8080:8080"
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    restart: always
-    depends_on:
-      <<: *airflow-common-depends-on
-      airflow-init:
-        condition: service_completed_successfully
-
-  # Airflow Scheduler
-  airflow-scheduler:
-    <<: *airflow-common
-    container_name: genetl-airflow-scheduler
-    command: scheduler
-    healthcheck:
-      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname \"$${HOSTNAME}\""]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    restart: always
-    depends_on:
-      <<: *airflow-common-depends-on
-      airflow-init:
-        condition: service_completed_successfully
-
   # Airflow Init
   airflow-init:
     <<: *airflow-common
@@ -124,12 +87,20 @@ services:
     command:
       - -c
       - |
+        echo "Installing additional dependencies..."
+        pip install --no-cache-dir \
+          apache-airflow-providers-postgres \
+          apache-airflow-providers-redis \
+          pandas numpy requests psycopg2-binary \
+          "SQLAlchemy>=1.4.24,<1.5" great-expectations \
+          "redis>=5.0.0" scikit-learn openai
+        
         echo "Starting Airflow initialization..."
         mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
         chown -R "$${AIRFLOW_UID}:0" /opt/airflow/{logs,dags,plugins}
         
         echo "Initializing Airflow database..."
-        airflow db init
+        airflow db migrate
         
         echo "Creating admin user..."
         airflow users create \
@@ -147,9 +118,44 @@ services:
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-admin}
       _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-admin}
-      _PIP_ADDITIONAL_REQUIREMENTS: ''
     user: "0:0"
     restart: "no"
+
+  # Airflow Webserver
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: genetl-airflow-webserver
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  # Airflow Scheduler
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: genetl-airflow-scheduler
+    command: scheduler
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname \"$${HOSTNAME}\""]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
 
 volumes:
   genetl_postgres_data:

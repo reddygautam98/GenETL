@@ -1,6 +1,5 @@
 # GenETL Dependencies
-# Core Airflow and extensions
-apache-airflow[postgres,redis]==2.7.1
+# Core Airflow and extensions (using Astro runtime version)
 apache-airflow-providers-postgres
 apache-airflow-providers-redis
 
@@ -9,7 +8,7 @@ pandas
 numpy
 requests
 psycopg2-binary
-SQLAlchemy>=1.4.24,<2.0
+SQLAlchemy>=1.4.24,<1.5
 great-expectations
 redis>=5.0.0
 
