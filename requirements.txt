@@ -9,7 +9,7 @@ pandas
 numpy
 requests
 psycopg2-binary
-SQLAlchemy>=2.0
+SQLAlchemy>=1.4.24,<2.0
 great-expectations
 redis>=5.0.0
 

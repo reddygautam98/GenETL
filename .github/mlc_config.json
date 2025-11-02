@@ -8,6 +8,18 @@
     },
     {
       "pattern": "mailto:"
+    },
+    {
+      "pattern": "github.com/reddygautam98/GenETL/discussions"
+    },
+    {
+      "pattern": "docs/API_REFERENCE.md"
+    },
+    {
+      "pattern": "docs/AI_FEATURES.md"
+    },
+    {
+      "pattern": "docs/ai/"
     }
   ],
   "replacementPatterns": [],
@@ -15,5 +27,6 @@
   "timeout": "20s",
   "retryOn429": true,
   "retryCount": 3,
-  "fallbackHttpStatus": [400, 401, 403, 404, 429, 500, 502, 503, 504]
+  "fallbackHttpStatus": [400, 401, 403, 404, 429, 500, 502, 503, 504],
+  "aliveStatusCodes": [200, 302]
 }
