@@ -3,16 +3,16 @@ GenETL AI-Enhanced ETL DAG
 Integrated AI-powered data pipeline with intelligent processing
 """
 
-from datetime import datetime, timedelta
-from airflow import DAG
-from airflow.operators.python_operator import PythonOperator
-
-# Removed unused imports: BashOperator, FileSensor
-import pandas as pd
-from sqlalchemy import create_engine
 import logging
 import os
 import sys
+from datetime import datetime, timedelta
+
+# Removed unused imports: BashOperator, FileSensor
+import pandas as pd
+from airflow import DAG
+from airflow.operators.python_operator import PythonOperator
+from sqlalchemy import create_engine
 
 # Add project directory to Python path for imports
 sys.path.append("/opt/airflow/dags")
@@ -20,10 +20,10 @@ sys.path.append("/opt/airflow/dags")
 # Import our AI modules
 try:
     from ai_insights_generator import GenETLAIAnalyzer
-    from smart_data_quality_ai import SmartDataQualityAI
     from ai_query_interface import AIQueryInterface
     from ai_report_generator import AIReportGenerator
     from predictive_analytics_engine import PredictiveAnalyticsEngine
+    from smart_data_quality_ai import SmartDataQualityAI
 except ImportError as e:
     logging.warning(f"AI modules not available in Airflow environment: {e}")
     # Fallback imports or mock classes would go here
