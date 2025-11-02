@@ -8,22 +8,24 @@ from sqlalchemy import create_engine
 
 # Database configuration
 DB_CONFIG = {
-    'host': 'localhost',
-    'port': 5450,
-    'database': 'genetl_warehouse',
-    'user': 'genetl',
-    'password': 'genetl_pass'
+    "host": "localhost",
+    "port": 5450,
+    "database": "genetl_warehouse",
+    "user": "genetl",
+    "password": "genetl_pass",
 }
+
 
 def get_db_engine():
     """Create SQLAlchemy engine for database connections"""
     connection_string = f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
     return create_engine(connection_string)
 
+
 def generate_dashboard():
     """Generate HTML dashboard with data insights"""
     engine = get_db_engine()
-    
+
     # Get key metrics
     metrics_query = """
     SELECT 
@@ -35,7 +37,7 @@ def generate_dashboard():
         SUM(CASE WHEN is_active = true THEN 1 ELSE 0 END) as active_products
     FROM warehouse.products;
     """
-    
+
     category_data_query = """
     SELECT 
         category,
@@ -45,7 +47,7 @@ def generate_dashboard():
     GROUP BY category
     ORDER BY count DESC;
     """
-    
+
     price_dist_query = """
     SELECT 
         CASE 
@@ -65,16 +67,16 @@ def generate_dashboard():
         END
     ORDER BY MIN(price);
     """
-    
+
     # Get data
     metrics = pd.read_sql(metrics_query, engine)
     category_data = pd.read_sql(category_data_query, engine)
     price_dist = pd.read_sql(price_dist_query, engine)
-    
+
     # Convert to JSON for JavaScript
-    category_json = category_data.to_json(orient='records')
-    price_json = price_dist.to_json(orient='records')
-    
+    category_json = category_data.to_json(orient="records")
+    price_json = price_dist.to_json(orient="records")
+
     # Generate HTML
     html_content = f"""
 <!DOCTYPE html>
@@ -256,15 +258,16 @@ def generate_dashboard():
 </body>
 </html>
     """
-    
+
     # Save dashboard
-    with open('dashboard.html', 'w', encoding='utf-8') as f:
+    with open("dashboard.html", "w", encoding="utf-8") as f:
         f.write(html_content)
-    
+
     print("📊 Dashboard generated successfully!")
     print("🌐 Open 'dashboard.html' in your browser to view interactive insights")
-    
+
     return html_content
+
 
 if __name__ == "__main__":
     generate_dashboard()
