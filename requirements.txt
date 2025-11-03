@@ -29,4 +29,7 @@ isort
 flake8
 mypy
 safety
-bandit
+bandit
+
+# Required by Airflow web/session handling
+Flask-Session>=0.4.0
