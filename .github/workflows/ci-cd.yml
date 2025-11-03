@@ -186,8 +186,8 @@ jobs:
     - name: Test Docker Compose Build
       run: |
         # Test that docker-compose builds successfully with CI configuration
-        docker-compose -f docker-compose.ci.yml config
-        docker-compose -f docker-compose.ci.yml build --no-cache
+        docker compose -f docker-compose.ci.yml config
+        docker compose -f docker-compose.ci.yml build --no-cache
     
     - name: Test Container Startup
       env:
@@ -197,22 +197,22 @@ jobs:
         AIRFLOW__CORE__FERNET_KEY: zP0KVBMjQ0zIbD3fkGjHxhjNZNUHq2okB2Lp3fkF1RY=
       run: |
         # Start containers with CI configuration
-        docker-compose -f docker-compose.ci.yml up -d
+        docker compose -f docker-compose.ci.yml up -d
         
         # Wait for services to be ready
         sleep 60
         
         # Check if containers are running
-        docker-compose -f docker-compose.ci.yml ps
+        docker compose -f docker-compose.ci.yml ps
         
         # Test database connectivity
-        docker-compose -f docker-compose.ci.yml exec -T genetl-postgres pg_isready -U genetl -d genetl_warehouse
+        docker compose -f docker-compose.ci.yml exec -T genetl-postgres pg_isready -U genetl -d genetl_warehouse
         
         # Test Redis connectivity
-        docker-compose -f docker-compose.ci.yml exec -T genetl-redis redis-cli ping
+        docker compose -f docker-compose.ci.yml exec -T genetl-redis redis-cli ping
         
         # Cleanup
-        docker-compose -f docker-compose.ci.yml down
+        docker compose -f docker-compose.ci.yml down
 
   security-scan:
     runs-on: ubuntu-latest
