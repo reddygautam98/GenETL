@@ -183,6 +183,19 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
     
+    - name: Set up environment for Docker build
+      run: |
+        # Copy CI environment file
+        cp .env.ci .env
+        # Ensure packages.txt exists and is clean
+        echo "Checking packages.txt content:"
+        cat packages.txt || echo "packages.txt not found, creating empty file"
+        
+        # Create empty packages.txt if it doesn't exist
+        if [ ! -f packages.txt ]; then
+          touch packages.txt
+        fi
+    
     - name: Test Docker Compose Build
       run: |
         # Test that docker compose builds successfully with CI configuration
