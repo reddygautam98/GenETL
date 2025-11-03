@@ -13,6 +13,9 @@ SQLAlchemy>=1.4,<2.0
 great-expectations
 redis>=4.0.0
 
+# Airflow session management
+Flask-Session>=0.4.0
+
 # AI and ML dependencies
 scikit-learn
 openai
@@ -29,4 +32,4 @@ isort
 flake8
 mypy
 safety
-bandit
+bandit
