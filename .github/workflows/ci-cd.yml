@@ -36,13 +36,22 @@ jobs:
       run: |
         python -m pip install --upgrade pip setuptools wheel
         pip install flake8 black isort mypy
-        # Download official Airflow constraints for Python 3.8 and use them
-        CONSTRAINTS_URL="https://raw.githubusercontent.com/apache/airflow/constraints-2.7.1/constraints-3.8.txt"
-        curl -sSL "$CONSTRAINTS_URL" -o constraints-3.8.txt
-        # Prefer binary wheels and install using Airflow constraints to avoid resolution conflicts
-        pip install --prefer-binary -c constraints-3.8.txt -r requirements.txt || \
-        pip install --prefer-binary -c constraints-3.8.txt --only-binary=google-re2,grpcio -r requirements.txt || \
-        pip install --prefer-binary -r requirements.txt
+        # Download official Airflow constraints for Python 3.8
+        curl -o airflow-constraints.txt https://raw.githubusercontent.com/apache/airflow/constraints-2.7.1/constraints-3.8.txt
+        # Configure pip to avoid source builds for packages that require Bazel
+        mkdir -p ~/.pip
+        cat > ~/.pip/pip.conf << EOF
+        [global]
+        prefer-binary = true
+        only-binary = google-re2,grpcio,tensorflow,torch
+        EOF
+        # Set environment variables to prefer binary wheels
+        export PIP_PREFER_BINARY=1
+        export PIP_NO_BUILD_ISOLATION=false
+        # Install with Airflow constraints and fallback strategies
+        pip install --prefer-binary -c airflow-constraints.txt --only-binary=:all: -r requirements.txt || \
+        pip install --prefer-binary -c airflow-constraints.txt --only-binary=google-re2,grpcio -r requirements.txt || \
+        pip install --prefer-binary -c airflow-constraints.txt -r requirements.txt
     
     - name: Format check with Black
       run: black --check --diff .
@@ -109,13 +118,22 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip setuptools wheel
-        # Download official Airflow constraints for Python 3.8 and use them
-        CONSTRAINTS_URL="https://raw.githubusercontent.com/apache/airflow/constraints-2.7.1/constraints-3.8.txt"
-        curl -sSL "$CONSTRAINTS_URL" -o constraints-3.8.txt
-        # Prefer binary wheels and install using Airflow constraints to avoid resolution conflicts
-        pip install --prefer-binary -c constraints-3.8.txt -r requirements.txt || \
-        pip install --prefer-binary -c constraints-3.8.txt --only-binary=google-re2,grpcio -r requirements.txt || \
-        pip install --prefer-binary -r requirements.txt
+        # Download official Airflow constraints for Python 3.8
+        curl -o airflow-constraints.txt https://raw.githubusercontent.com/apache/airflow/constraints-2.7.1/constraints-3.8.txt
+        # Configure pip to avoid source builds for packages that require Bazel
+        mkdir -p ~/.pip
+        cat > ~/.pip/pip.conf << EOF
+        [global]
+        prefer-binary = true
+        only-binary = google-re2,grpcio,tensorflow,torch
+        EOF
+        # Set environment variables to prefer binary wheels
+        export PIP_PREFER_BINARY=1
+        export PIP_NO_BUILD_ISOLATION=false
+        # Install with Airflow constraints and fallback strategies
+        pip install --prefer-binary -c airflow-constraints.txt --only-binary=:all: -r requirements.txt || \
+        pip install --prefer-binary -c airflow-constraints.txt --only-binary=google-re2,grpcio -r requirements.txt || \
+        pip install --prefer-binary -c airflow-constraints.txt -r requirements.txt
         pip install pytest pytest-cov
     
     - name: Wait for services
