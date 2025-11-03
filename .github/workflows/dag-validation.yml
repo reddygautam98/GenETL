@@ -129,7 +129,7 @@ jobs:
         echo "DAG documentation generated in dag_documentation.md"
     
     - name: Upload DAG Documentation
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: dag-documentation
         path: dag_documentation.md

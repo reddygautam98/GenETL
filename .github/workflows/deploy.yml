@@ -193,7 +193,7 @@ jobs:
         ls -lh genetl-deployment-*.tar.gz
     
     - name: Upload deployment package
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: genetl-deployment-${{ github.event.inputs.environment }}
         path: genetl-deployment-${{ github.event.inputs.environment }}.tar.gz
