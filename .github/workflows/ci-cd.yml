@@ -185,7 +185,8 @@ jobs:
     
     - name: Test Docker Compose Build
       run: |
-        # Test that docker-compose builds successfully with CI configuration
+        # Test that docker compose builds successfully with CI configuration
+        # Using Docker Compose V2 syntax (space instead of hyphen)
         docker compose -f docker-compose.ci.yml config
         docker compose -f docker-compose.ci.yml build --no-cache
     
@@ -197,6 +198,7 @@ jobs:
         AIRFLOW__CORE__FERNET_KEY: zP0KVBMjQ0zIbD3fkGjHxhjNZNUHq2okB2Lp3fkF1RY=
       run: |
         # Start containers with CI configuration
+        # Using Docker Compose V2 syntax (space instead of hyphen)
         docker compose -f docker-compose.ci.yml up -d
         
         # Wait for services to be ready
