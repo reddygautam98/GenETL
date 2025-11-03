@@ -87,14 +87,6 @@ services:
     command:
       - -c
       - |
-        echo "Installing additional dependencies..."
-        pip install --no-cache-dir \
-          apache-airflow-providers-postgres \
-          apache-airflow-providers-redis \
-          pandas numpy requests psycopg2-binary \
-          "SQLAlchemy>=1.4.24,<1.5" great-expectations \
-          "redis>=5.0.0" scikit-learn openai
-        
         echo "Starting Airflow initialization..."
         mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
         chown -R "$${AIRFLOW_UID}:0" /opt/airflow/{logs,dags,plugins}
