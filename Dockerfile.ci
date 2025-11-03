@@ -22,14 +22,13 @@ RUN apt-get update && apt-get install -y \
 RUN groupadd -r airflow && useradd -r -g airflow -d ${AIRFLOW_HOME} -s /bin/bash airflow
 
 # Install Python dependencies
-COPY requirements.txt constraints.txt /tmp/
+COPY requirements.txt /tmp/
 RUN pip install --upgrade pip setuptools wheel
 
-# Try to install with binary-only first, fallback to binary-preferred
-RUN pip install --no-cache-dir --prefer-binary --constraint /tmp/constraints.txt \
-    --only-binary=:all: -r /tmp/requirements.txt || \
-    pip install --no-cache-dir --prefer-binary --constraint /tmp/constraints.txt \
-    -r /tmp/requirements.txt
+# Download official Airflow constraints for Python 3.8 and install using them
+RUN curl -sSL https://raw.githubusercontent.com/apache/airflow/constraints-2.7.1/constraints-3.8.txt -o /tmp/constraints-3.8.txt && \
+    pip install --no-cache-dir --prefer-binary -c /tmp/constraints-3.8.txt -r /tmp/requirements.txt || \
+    pip install --no-cache-dir --prefer-binary -r /tmp/requirements.txt
 
 # Install additional packages if specified
 COPY packages.txt /tmp/packages.txt

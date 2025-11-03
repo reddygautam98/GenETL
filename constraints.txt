@@ -3,19 +3,13 @@
 
 # Prevent google-re2 from being built from source - use specific binary version
 # If google-re2 is pulled as a dependency, use a version with known binary wheels
-google-re2==1.1.20250722; python_version >= "3.8"
 
 # Other packages that commonly have build issues in CI environments
 # Ensure we use compatible versions with binary wheels available for Python 3.8
-pandas>=1.3.0,<3.0.0
-numpy>=1.21.0,<3.0.0
-SQLAlchemy>=1.4.24,<1.5.0
-psycopg2-binary>=2.8.0
 
 # AI/ML packages - prefer stable versions with binary wheels
-scikit-learn>=1.0.0,<2.0.0
-openai>=1.0.0
 
 # Airflow related constraints
-apache-airflow==2.7.1
-structlog<24.0.0
+# constraints.txt is deprecated in this repository.
+# The CI now downloads and uses the official Airflow constraints for 2.7.1 (Python 3.8) at runtime.
+# If you need to pin additional constraints, update the CI workflow or Dockerfile.ci to include them explicitly.

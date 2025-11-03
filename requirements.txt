@@ -11,19 +11,24 @@ structlog<24.0.0
 # Data processing and ETL dependencies
 pandas
 numpy
+apache-airflow==2.7.1
+apache-airflow-providers-postgres
+apache-airflow-providers-redis
+
+# SQLAlchemy: compatible with Airflow 2.7.1
+SQLAlchemy>=1.4,<2.0
+
+# Data processing and ETL dependencies
+pandas
+numpy
 requests
 psycopg2-binary
-SQLAlchemy>=1.4.24,<1.5
 great-expectations
 redis>=5.0.0
 
 # AI and ML dependencies
 scikit-learn
 openai
-
-# Constraints to prevent build issues in CI
-# Prevent google-re2 from being installed if it has build issues
-# Use binary distributions only
 
 # Development and testing dependencies
 pytest
