@@ -4,9 +4,9 @@ Test script to verify GenETL dependencies are working correctly
 and to check for potential google-re2 conflicts.
 """
 
-import sys
 import importlib
 import logging
+import sys
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")

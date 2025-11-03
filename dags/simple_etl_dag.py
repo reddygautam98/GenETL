@@ -8,8 +8,8 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 from airflow import DAG
-from airflow.operators.python import PythonOperator
 from airflow.hooks.postgres_hook import PostgresHook
+from airflow.operators.python import PythonOperator
 
 # Default arguments for the DAG
 default_args = {

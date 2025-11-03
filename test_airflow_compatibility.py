@@ -4,11 +4,11 @@ Test script to verify dependency resolution for Airflow 2.7.1 compatibility.
 This script simulates the CI environment dependency resolution process.
 """
 
+import logging
+import os
 import subprocess
 import sys
 import tempfile
-import os
-import logging
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
