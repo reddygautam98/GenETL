@@ -7,6 +7,8 @@ FROM python:3.8-slim
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV AIRFLOW_HOME=/opt/airflow
+ENV PIP_PREFER_BINARY=1
+ENV PIP_NO_BUILD_ISOLATION=false
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
