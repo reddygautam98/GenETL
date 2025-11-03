@@ -1,0 +1,266 @@
+name: Maintenance & Cleanup
+
+"on":
+  schedule:
+    - cron: '0 2 * * 0'  # Weekly on Sunday at 2 AM UTC
+  workflow_dispatch:
+    inputs:
+      cleanup_type:
+        description: 'Type of cleanup to perform'
+        required: true
+        default: 'logs'
+        type: choice
+        options:
+          - logs
+          - database
+          - artifacts
+          - all
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    name: GenETL Maintenance & Cleanup
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Generate maintenance report
+      run: |
+        echo "# GenETL Maintenance Report" > maintenance_report.md
+        echo "" >> maintenance_report.md
+        echo "**Date:** $(date)" >> maintenance_report.md
+        echo "**Cleanup Type:** ${{ github.event.inputs.cleanup_type || 'scheduled' }}" >> maintenance_report.md
+        echo "" >> maintenance_report.md
+    
+    - name: Repository cleanup
+      run: |
+        echo "🧹 Repository Cleanup..."
+        
+        # Find large files
+        echo "## Large Files Analysis" >> maintenance_report.md
+        echo "" >> maintenance_report.md
+        find . -type f -size +10M -not -path "./.git/*" | head -10 | while read file; do
+          size=$(du -h "$file" | cut -f1)
+          echo "- $file: $size" >> maintenance_report.md
+        done
+        
+        # Check for temporary files
+        temp_files=$(find . -name "*.tmp" -o -name "*.log" -o -name "*.pyc" | wc -l)
+        echo "" >> maintenance_report.md
+        echo "## Temporary Files" >> maintenance_report.md
+        echo "Found $temp_files temporary files that could be cleaned up" >> maintenance_report.md
+    
+    - name: Dependency audit
+      run: |
+        echo "🔍 Dependency Audit..."
+        
+        pip install safety
+        
+        echo "" >> maintenance_report.md
+        echo "## Security Audit" >> maintenance_report.md
+        echo "" >> maintenance_report.md
+        
+        # Check for known vulnerabilities
+        if safety check --json > safety_results.json 2>/dev/null; then
+          echo "✅ No known vulnerabilities found" >> maintenance_report.md
+        else
+          echo "⚠️  Some vulnerabilities detected - check safety_results.json" >> maintenance_report.md
+        fi
+    
+    - name: Generate cleanup recommendations
+      run: |
+        echo "" >> maintenance_report.md
+        echo "## Maintenance Recommendations" >> maintenance_report.md
+        echo "" >> maintenance_report.md
+        
+        # Check Git repository size
+        git_size=$(du -sh .git 2>/dev/null | cut -f1 || echo "Unknown")
+        echo "- Git repository size: $git_size" >> maintenance_report.md
+        
+        # Check for old branches
+        old_branches=$(git for-each-ref --format='%(refname:short) %(committerdate)' refs/heads | awk '$2 < "'$(date -d '3 months ago' '+%Y-%m-%d')'"' | wc -l 2>/dev/null || echo 0)
+        if [ "$old_branches" -gt 0 ]; then
+          echo "- Consider cleaning up $old_branches old branches" >> maintenance_report.md
+        fi
+        
+        # Docker cleanup recommendations
+        echo "- Regular Docker cleanup: \`docker system prune -af\`" >> maintenance_report.md
+        echo "- Airflow log cleanup: Configure log retention in airflow.cfg" >> maintenance_report.md
+        echo "- Database maintenance: Regular VACUUM and ANALYZE on PostgreSQL" >> maintenance_report.md
+        
+        echo "" >> maintenance_report.md
+        echo "## Automated Actions Taken" >> maintenance_report.md
+        echo "" >> maintenance_report.md
+    
+    - name: Log cleanup simulation
+      if: github.event.inputs.cleanup_type == 'logs' || github.event.inputs.cleanup_type == 'all' || github.event.inputs.cleanup_type == ''
+      run: |
+        echo "🗂️  Log Cleanup Analysis..."
+        
+        # Simulate log cleanup (don't actually delete in CI)
+        log_files=0
+        if [ -d "logs" ]; then
+          log_files=$(find logs/ -name "*.log" -mtime +7 2>/dev/null | wc -l || echo 0)
+        fi
+        
+        echo "- Found $log_files log files older than 7 days that could be cleaned" >> maintenance_report.md
+        
+        # Airflow log cleanup commands
+        echo "- Suggested cleanup commands:" >> maintenance_report.md
+        echo "  - \`find logs/ -name '*.log' -mtime +7 -delete\`" >> maintenance_report.md
+        echo "  - \`airflow db clean --clean-before-timestamp $(date -d '7 days ago' '+%Y-%m-%d')\`" >> maintenance_report.md
+    
+    - name: Database maintenance simulation
+      if: github.event.inputs.cleanup_type == 'database' || github.event.inputs.cleanup_type == 'all'
+      run: |
+        echo "🗄️  Database Maintenance Analysis..."
+        
+        echo "- Database optimization suggestions:" >> maintenance_report.md
+        echo "  - Run VACUUM ANALYZE on PostgreSQL tables weekly" >> maintenance_report.md
+        echo "  - Clean old DAG runs: \`airflow db clean --clean-before-timestamp <date>\`" >> maintenance_report.md
+        echo "  - Archive completed task instances older than 30 days" >> maintenance_report.md
+        echo "  - Monitor database size and set up automated backups" >> maintenance_report.md
+    
+    - name: Artifact cleanup analysis
+      if: github.event.inputs.cleanup_type == 'artifacts' || github.event.inputs.cleanup_type == 'all'
+      run: |
+        echo "📦 Artifact Cleanup Analysis..."
+        
+        echo "- Artifact management suggestions:" >> maintenance_report.md
+        echo "  - Review and clean old workflow artifacts" >> maintenance_report.md
+        echo "  - Set appropriate retention policies for build artifacts" >> maintenance_report.md
+        echo "  - Clean up old container images: \`docker image prune -af\`" >> maintenance_report.md
+        echo "  - Remove unused Docker volumes: \`docker volume prune -f\`" >> maintenance_report.md
+    
+    - name: Generate maintenance checklist
+      run: |
+        cat >> maintenance_report.md << 'EOF'
+        
+        ## Weekly Maintenance Checklist
+        
+        ### System Maintenance
+        - [ ] Check system resource usage (CPU, memory, disk)
+        - [ ] Review Airflow scheduler and webserver logs
+        - [ ] Verify all DAGs are running successfully
+        - [ ] Check database performance and size
+        - [ ] Review security scan results
+        
+        ### Cleanup Tasks  
+        - [ ] Clean up old log files (>7 days)
+        - [ ] Archive completed DAG runs (>30 days)
+        - [ ] Remove temporary files and caches
+        - [ ] Clean up Docker images and volumes
+        - [ ] Review and merge/delete old branches
+        
+        ### Security & Updates
+        - [ ] Review dependency vulnerabilities
+        - [ ] Check for Airflow and Python updates
+        - [ ] Verify backup procedures
+        - [ ] Review access logs and permissions
+        - [ ] Update documentation if needed
+        
+        ### Performance Optimization
+        - [ ] Analyze DAG performance metrics
+        - [ ] Review slow-running tasks
+        - [ ] Optimize database queries if needed
+        - [ ] Check for memory leaks or resource issues
+        - [ ] Monitor scheduler performance
+        
+        EOF
+    
+    - name: Create maintenance scripts
+      run: |
+        mkdir -p scripts/maintenance
+        
+        cat > scripts/maintenance/cleanup.sh << 'EOF'
+        #!/bin/bash
+        # GenETL Maintenance Cleanup Script
+        
+        set -e
+        
+        echo "🧹 Starting GenETL maintenance cleanup..."
+        
+        # Function to clean logs
+        clean_logs() {
+            echo "Cleaning log files older than 7 days..."
+            find logs/ -name "*.log" -mtime +7 -delete 2>/dev/null || echo "No old log files found"
+            echo "✅ Log cleanup completed"
+        }
+        
+        # Function to clean Docker resources
+        clean_docker() {
+            echo "Cleaning Docker resources..."
+            docker system prune -af --volumes 2>/dev/null || echo "Docker cleanup completed"
+            echo "✅ Docker cleanup completed"
+        }
+        
+        # Function to backup before cleanup
+        backup_before_cleanup() {
+            echo "Creating backup before cleanup..."
+            timestamp=$(date +%Y%m%d_%H%M%S)
+            mkdir -p "backups/$timestamp"
+            
+            # Backup important logs
+            cp -r logs/ "backups/$timestamp/" 2>/dev/null || echo "No logs to backup"
+            
+            echo "✅ Backup created in backups/$timestamp"
+        }
+        
+        # Main cleanup process
+        case "${1:-all}" in
+            "logs")
+                clean_logs
+                ;;
+            "docker")
+                clean_docker
+                ;;
+            "all")
+                backup_before_cleanup
+                clean_logs
+                clean_docker
+                echo "🎉 Complete cleanup finished!"
+                ;;
+            *)
+                echo "Usage: $0 {logs|docker|all}"
+                exit 1
+                ;;
+        esac
+        EOF
+        
+        chmod +x scripts/maintenance/cleanup.sh
+        
+        echo "- Maintenance scripts created in scripts/maintenance/" >> maintenance_report.md
+    
+    - name: Upload maintenance report
+      uses: actions/upload-artifact@v3
+      with:
+        name: maintenance-report-${{ github.run_number }}
+        path: |
+          maintenance_report.md
+          scripts/
+        retention-days: 30
+    
+    - name: Maintenance Summary
+      run: |
+        echo "## 🔧 Maintenance Report Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Maintenance Date:** $(date)" >> $GITHUB_STEP_SUMMARY  
+        echo "**Cleanup Type:** ${{ github.event.inputs.cleanup_type || 'scheduled-full' }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📋 Tasks Completed:" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Repository analysis completed" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Security audit performed" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Cleanup recommendations generated" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Maintenance scripts created" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📊 Key Findings:" >> $GITHUB_STEP_SUMMARY
+        echo "- Repository health analyzed" >> $GITHUB_STEP_SUMMARY
+        echo "- Dependency vulnerabilities checked" >> $GITHUB_STEP_SUMMARY
+        echo "- Cleanup procedures documented" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📄 Download the maintenance report artifact for detailed recommendations."

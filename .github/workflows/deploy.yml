@@ -1,0 +1,220 @@
+name: Deploy to Environment
+
+"on":
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      version:
+        description: 'Version to deploy (leave empty for latest)'
+        required: false
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy GenETL to ${{ github.event.inputs.environment }}
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.inputs.version || 'main' }}
+    
+    - name: Set environment variables
+      run: |
+        case "${{ github.event.inputs.environment }}" in
+          "development")
+            echo "DEPLOY_HOST=dev.example.com" >> $GITHUB_ENV
+            echo "POSTGRES_DB=genetl_dev" >> $GITHUB_ENV
+            ;;
+          "staging")
+            echo "DEPLOY_HOST=staging.example.com" >> $GITHUB_ENV
+            echo "POSTGRES_DB=genetl_staging" >> $GITHUB_ENV
+            ;;
+          "production")
+            echo "DEPLOY_HOST=prod.example.com" >> $GITHUB_ENV
+            echo "POSTGRES_DB=genetl_prod" >> $GITHUB_ENV
+            ;;
+        esac
+    
+    - name: Generate deployment configuration
+      run: |
+        cat > docker-compose.deploy.yml << EOF
+        services:
+          postgres:
+            image: postgres:12.6
+            environment:
+              POSTGRES_USER: \${POSTGRES_USER}
+              POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
+              POSTGRES_DB: \${POSTGRES_DB}
+            volumes:
+              - postgres_data:/var/lib/postgresql/data
+            ports:
+              - "5433:5432"
+            restart: unless-stopped
+            healthcheck:
+              test: ["CMD", "pg_isready", "-U", "\${POSTGRES_USER}"]
+              interval: 10s
+              retries: 5
+              start_period: 5s
+        
+          airflow-webserver:
+            image: apache/airflow:2.7.3
+            environment:
+              AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://\${POSTGRES_USER}:\${POSTGRES_PASSWORD}@postgres:5432/\${POSTGRES_DB}
+              AIRFLOW__CORE__FERNET_KEY: \${AIRFLOW_FERNET_KEY}
+              AIRFLOW__CORE__LOAD_EXAMPLES: false
+              AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: true
+              AIRFLOW__WEBSERVER__EXPOSE_CONFIG: true
+            command: webserver
+            ports:
+              - "8888:8080"
+            volumes:
+              - ./dags:/opt/airflow/dags:ro
+              - ./logs:/opt/airflow/logs
+              - ./plugins:/opt/airflow/plugins:ro
+            restart: unless-stopped
+            depends_on:
+              postgres:
+                condition: service_healthy
+        
+          airflow-scheduler:
+            image: apache/airflow:2.7.3
+            environment:
+              AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://\${POSTGRES_USER}:\${POSTGRES_PASSWORD}@postgres:5432/\${POSTGRES_DB}
+              AIRFLOW__CORE__FERNET_KEY: \${AIRFLOW_FERNET_KEY}
+            command: scheduler
+            volumes:
+              - ./dags:/opt/airflow/dags:ro
+              - ./logs:/opt/airflow/logs
+              - ./plugins:/opt/airflow/plugins:ro
+            restart: unless-stopped
+            depends_on:
+              postgres:
+                condition: service_healthy
+        
+        volumes:
+          postgres_data:
+        EOF
+    
+    - name: Create deployment package
+      run: |
+        # Create deployment directory
+        mkdir -p deployment
+        
+        # Copy necessary files
+        cp -r dags/ deployment/
+        cp -r include/ deployment/ 2>/dev/null || echo "No include directory"
+        cp -r plugins/ deployment/ 2>/dev/null || echo "No plugins directory"
+        cp requirements.txt deployment/
+        cp docker-compose.deploy.yml deployment/docker-compose.yml
+        
+        # Create deployment scripts
+        cat > deployment/deploy.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        echo "🚀 Starting GenETL deployment..."
+        
+        # Load environment variables
+        if [ -f ".env" ]; then
+            source .env
+        fi
+        
+        # Pull latest images
+        echo "📦 Pulling Docker images..."
+        docker compose pull
+        
+        # Stop existing containers
+        echo "🛑 Stopping existing containers..."
+        docker compose down
+        
+        # Start services
+        echo "▶️ Starting services..."
+        docker compose up -d
+        
+        # Wait for services
+        echo "⏳ Waiting for services to be ready..."
+        sleep 30
+        
+        # Initialize database if needed
+        echo "🗄️ Initializing Airflow database..."
+        docker compose exec airflow-webserver airflow db init || true
+        
+        # Create admin user if needed
+        docker compose exec airflow-webserver airflow users create \
+          --username admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com \
+          --password "$AIRFLOW_ADMIN_PASSWORD" || echo "Admin user may already exist"
+        
+        echo "✅ Deployment completed successfully!"
+        echo "🌐 Access Airflow at: http://$(hostname -I | awk '{print $1}'):8888"
+        EOF
+        
+        chmod +x deployment/deploy.sh
+        
+        # Create backup script
+        cat > deployment/backup.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        BACKUP_DIR="backups/$(date +%Y%m%d_%H%M%S)"
+        mkdir -p "$BACKUP_DIR"
+        
+        echo "💾 Creating backup..."
+        
+        # Backup database
+        docker compose exec postgres pg_dump -U $POSTGRES_USER $POSTGRES_DB > "$BACKUP_DIR/database.sql"
+        
+        # Backup logs
+        cp -r logs/ "$BACKUP_DIR/"
+        
+        echo "✅ Backup created in $BACKUP_DIR"
+        EOF
+        
+        chmod +x deployment/backup.sh
+    
+    - name: Package deployment
+      run: |
+        tar -czf genetl-deployment-${{ github.event.inputs.environment }}.tar.gz deployment/
+        
+        echo "📦 Deployment package created:"
+        ls -lh genetl-deployment-*.tar.gz
+    
+    - name: Upload deployment package
+      uses: actions/upload-artifact@v3
+      with:
+        name: genetl-deployment-${{ github.event.inputs.environment }}
+        path: genetl-deployment-${{ github.event.inputs.environment }}.tar.gz
+        retention-days: 30
+    
+    - name: Deployment Summary
+      run: |
+        echo "## 🚀 GenETL Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Environment:** ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Version:** ${{ github.event.inputs.version || 'latest' }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📋 Deployment Package Contents:" >> $GITHUB_STEP_SUMMARY
+        echo "- Airflow DAGs and configurations" >> $GITHUB_STEP_SUMMARY
+        echo "- Docker Compose configuration" >> $GITHUB_STEP_SUMMARY
+        echo "- Deployment and backup scripts" >> $GITHUB_STEP_SUMMARY
+        echo "- All necessary dependencies" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔗 Next Steps:" >> $GITHUB_STEP_SUMMARY
+        echo "1. Download the deployment package artifact" >> $GITHUB_STEP_SUMMARY
+        echo "2. Extract it on your target server" >> $GITHUB_STEP_SUMMARY
+        echo "3. Configure environment variables in .env file" >> $GITHUB_STEP_SUMMARY
+        echo "4. Run ./deploy.sh to start the services" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,135 @@
+name: DAG Validation
+
+"on":
+  pull_request:
+    paths:
+      - 'dags/**'
+      - 'include/**'
+      - 'plugins/**'
+  push:
+    paths:
+      - 'dags/**'
+      - 'include/**'
+      - 'plugins/**'
+
+jobs:
+  validate-dags:
+    runs-on: ubuntu-latest
+    name: Validate Airflow DAGs
+    
+    services:
+      postgres:
+        image: postgres:12.6
+        env:
+          POSTGRES_USER: airflow
+          POSTGRES_PASSWORD: airflow
+          POSTGRES_DB: airflow
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install Airflow and dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install apache-airflow==2.7.3
+        pip install -r requirements.txt
+    
+    - name: Initialize Airflow Database
+      env:
+        AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@localhost:5432/airflow
+        AIRFLOW__CORE__FERNET_KEY: zP0KVBMjQ0zIbD3fkGjHxhjNZNUHq2okB2Lp3fkF1RY=
+        AIRFLOW__CORE__LOAD_EXAMPLES: false
+      run: |
+        airflow db init
+    
+    - name: Validate DAG Syntax
+      env:
+        AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@localhost:5432/airflow
+        AIRFLOW__CORE__FERNET_KEY: zP0KVBMjQ0zIbD3fkGjHxhjNZNUHq2okB2Lp3fkF1RY=
+      run: |
+        echo "🔍 Validating DAG files..."
+        
+        # Check for Python syntax errors
+        echo "Checking Python syntax..."
+        find dags/ -name "*.py" -exec python -m py_compile {} \; || exit 1
+        
+        # Check DAG integrity with Airflow
+        echo "Checking DAG integrity..."
+        python -c "
+        import sys
+        import os
+        sys.path.insert(0, os.path.abspath('.'))
+        
+        from airflow.models import DagBag
+        
+        dagbag = DagBag(dag_folder='dags/')
+        
+        if dagbag.import_errors:
+            print('❌ DAG Import Errors:')
+            for filename, error in dagbag.import_errors.items():
+                print(f'  {filename}: {error}')
+            sys.exit(1)
+        
+        print(f'✅ Successfully loaded {len(dagbag.dags)} DAG(s)')
+        
+        # Check for circular dependencies
+        for dag_id, dag in dagbag.dags.items():
+            try:
+                dag.test_cycle()
+                print(f'✅ DAG {dag_id}: No circular dependencies')
+            except Exception as e:
+                print(f'❌ DAG {dag_id}: Circular dependency detected - {e}')
+                sys.exit(1)
+        "
+    
+    - name: Generate DAG Documentation
+      env:
+        AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@localhost:5432/airflow
+        AIRFLOW__CORE__FERNET_KEY: zP0KVBMjQ0zIbD3fkGjHxhjNZNUHq2okB2Lp3fkF1RY=
+      run: |
+        echo "📊 Generating DAG documentation..."
+        python -c "
+        import sys
+        import os
+        sys.path.insert(0, os.path.abspath('.'))
+        
+        from airflow.models import DagBag
+        
+        dagbag = DagBag(dag_folder='dags/')
+        
+        print('# DAG Documentation\n')
+        
+        for dag_id, dag in dagbag.dags.items():
+            print(f'## {dag_id}')
+            print(f'**Description:** {dag.description or \"No description provided\"}')
+            print(f'**Schedule:** {dag.schedule_interval}')
+            print(f'**Start Date:** {dag.start_date}')
+            print(f'**Tags:** {dag.tags}')
+            print(f'**Tasks:** {len(dag.tasks)}')
+            
+            print('\n### Tasks:')
+            for task in dag.tasks:
+                print(f'- `{task.task_id}` ({task.__class__.__name__})')
+            print()
+        " > dag_documentation.md
+        
+        echo "DAG documentation generated in dag_documentation.md"
+    
+    - name: Upload DAG Documentation
+      uses: actions/upload-artifact@v3
+      with:
+        name: dag-documentation
+        path: dag_documentation.md

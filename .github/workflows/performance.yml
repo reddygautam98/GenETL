@@ -1,0 +1,214 @@
+name: Performance & Monitoring
+
+"on":
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6 AM UTC
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'dags/**'
+      - 'performance/**'
+
+jobs:
+  performance-test:
+    runs-on: ubuntu-latest
+    name: Performance Testing & Monitoring
+    
+    services:
+      postgres:
+        image: postgres:12.6
+        env:
+          POSTGRES_USER: airflow
+          POSTGRES_PASSWORD: airflow  
+          POSTGRES_DB: airflow
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install apache-airflow==2.7.3
+        pip install -r requirements.txt
+        pip install memory-profiler psutil matplotlib
+    
+    - name: Initialize Airflow
+      env:
+        AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@localhost:5432/airflow
+        AIRFLOW__CORE__FERNET_KEY: zP0KVBMjQ0zIbD3fkGjHxhjNZNUHq2okB2Lp3fkF1RY=
+      run: |
+        airflow db init
+    
+    - name: Performance Testing
+      env:
+        AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@localhost:5432/airflow
+        AIRFLOW__CORE__FERNET_KEY: zP0KVBMjQ0zIbD3fkGjHxhjNZNUHq2okB2Lp3fkF1RY=
+      run: |
+        cat > performance_test.py << 'EOF'
+        import time
+        import psutil
+        import sys
+        import os
+        from datetime import datetime
+        sys.path.insert(0, os.path.abspath('.'))
+        
+        from airflow.models import DagBag
+        
+        def measure_performance():
+            print("🔍 Starting performance measurement...")
+            
+            # Measure DAG loading time
+            start_time = time.time()
+            dagbag = DagBag(dag_folder='dags/')
+            load_time = time.time() - start_time
+            
+            # Memory usage
+            process = psutil.Process()
+            memory_mb = process.memory_info().rss / 1024 / 1024
+            
+            # CPU usage
+            cpu_percent = psutil.cpu_percent(interval=1)
+            
+            # Results
+            results = {
+                'timestamp': datetime.now().isoformat(),
+                'dag_count': len(dagbag.dags),
+                'load_time_seconds': round(load_time, 2),
+                'memory_usage_mb': round(memory_mb, 2),
+                'cpu_percent': cpu_percent,
+                'import_errors': len(dagbag.import_errors)
+            }
+            
+            print("📊 Performance Results:")
+            for key, value in results.items():
+                print(f"  {key}: {value}")
+            
+            # Performance thresholds
+            issues = []
+            if load_time > 10:
+                issues.append(f"⚠️  DAG loading time too high: {load_time:.2f}s")
+            if memory_mb > 500:
+                issues.append(f"⚠️  Memory usage high: {memory_mb:.2f}MB")
+            if len(dagbag.import_errors) > 0:
+                issues.append(f"❌ DAG import errors: {len(dagbag.import_errors)}")
+            
+            if issues:
+                print("\n🚨 Performance Issues Detected:")
+                for issue in issues:
+                    print(f"  {issue}")
+                return False
+            else:
+                print("\n✅ All performance metrics within acceptable ranges")
+                return True
+        
+        success = measure_performance()
+        sys.exit(0 if success else 1)
+        EOF
+        
+        python performance_test.py
+    
+    - name: Generate Performance Report
+      run: |
+        cat > performance_report.md << 'EOF'
+        # GenETL Performance Report
+        
+        **Generated:** $(date)
+        **Commit:** ${{ github.sha }}
+        
+        ## System Metrics
+        
+        - **CPU Cores:** $(nproc)
+        - **Total Memory:** $(free -h | grep Mem | awk '{print $2}')
+        - **Available Memory:** $(free -h | grep Mem | awk '{print $7}')
+        - **Disk Space:** $(df -h / | tail -1 | awk '{print $4}')
+        
+        ## DAG Performance
+        
+        Results from performance_test.py are captured above.
+        
+        ## Recommendations
+        
+        - Monitor DAG loading times regularly
+        - Optimize DAGs that take longer than 5 seconds to load
+        - Keep memory usage under 256MB for optimal performance
+        - Review and fix any DAG import errors immediately
+        
+        ## Monitoring Dashboard
+        
+        For real-time monitoring, consider setting up:
+        - Prometheus + Grafana for metrics collection
+        - Airflow StatsD for detailed DAG metrics
+        - Custom alerting for performance degradation
+        EOF
+    
+    - name: Database Performance Check
+      env:
+        PGPASSWORD: airflow
+      run: |
+        echo "🗄️ Database Performance Analysis..."
+        
+        # Check database size
+        psql -h localhost -p 5432 -U airflow -d airflow -c "
+        SELECT 
+            pg_size_pretty(pg_database_size('airflow')) as database_size,
+            (SELECT count(*) FROM dag_run) as total_dag_runs,
+            (SELECT count(*) FROM task_instance) as total_task_instances;
+        "
+        
+        # Check for slow queries (if any exist)
+        psql -h localhost -p 5432 -U airflow -d airflow -c "
+        SELECT 'Database performance check completed' as status;
+        "
+    
+    - name: Resource Monitoring
+      run: |
+        echo "📈 System Resource Monitoring..."
+        
+        # Current resource usage
+        echo "Memory Usage:"
+        free -h
+        
+        echo -e "\nCPU Usage:"
+        top -bn1 | grep "Cpu(s)"
+        
+        echo -e "\nDisk Usage:"
+        df -h
+        
+        echo -e "\nDocker Resource Usage:"
+        docker system df || echo "No Docker containers running"
+    
+    - name: Upload Performance Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-report-${{ github.run_number }}
+        path: performance_report.md
+        retention-days: 30
+    
+    - name: Performance Summary
+      run: |
+        echo "## 📊 Performance Test Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Test Date:** $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Key Metrics:" >> $GITHUB_STEP_SUMMARY
+        echo "- DAG loading performance measured" >> $GITHUB_STEP_SUMMARY
+        echo "- Memory usage analyzed" >> $GITHUB_STEP_SUMMARY
+        echo "- Database performance checked" >> $GITHUB_STEP_SUMMARY
+        echo "- System resources monitored" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📈 Download the performance report artifact for detailed analysis." >> $GITHUB_STEP_SUMMARY
