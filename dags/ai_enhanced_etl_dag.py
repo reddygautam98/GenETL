@@ -622,7 +622,7 @@ dag = DAG(
     "genetl_ai_enhanced_etl",
     default_args=default_args,
     description="AI-Enhanced ETL Pipeline with Intelligent Processing",
-    schedule_interval="@daily",  # Run daily
+    schedule="@hourly",  # Run hourly
     max_active_runs=1,
     tags=["genetl", "ai", "etl", "data-pipeline"],
 )

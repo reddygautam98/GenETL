@@ -30,7 +30,7 @@ dag = DAG(
     "etl_products_simplified",
     default_args=default_args,
     description="Simplified ETL pipeline for Products Data",
-    schedule_interval=timedelta(hours=1),
+    schedule=timedelta(hours=1),
     catchup=False,
     tags=["etl", "products", "simplified"],
 )

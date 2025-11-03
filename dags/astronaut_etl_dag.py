@@ -26,7 +26,7 @@ dag = DAG(
     "astronaut_etl_pipeline",
     default_args=default_args,
     description="ETL pipeline for astronaut data from Open Notify API",
-    schedule_interval="@daily",
+    schedule="@daily",
     catchup=False,
     tags=["example", "etl", "api"],
 )

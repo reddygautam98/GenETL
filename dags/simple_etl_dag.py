@@ -172,7 +172,7 @@ dag = DAG(
     "simple_etl_pipeline",
     default_args=default_args,
     description="Simple ETL pipeline for GenETL data loading",
-    schedule_interval=timedelta(hours=6),  # Run every 6 hours
+    schedule=timedelta(hours=6),  # Run every 6 hours
     catchup=False,
     tags=["etl", "genETL", "products"],
 )
