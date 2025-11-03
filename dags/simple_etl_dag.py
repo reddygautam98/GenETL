@@ -27,7 +27,7 @@ default_args = {
 
 def get_db_engine():
     """Create database engine using Airflow connection"""
-    postgres_hook = PostgresHook(postgres_conn_id='genetl_postgres')
+    postgres_hook = PostgresHook(postgres_conn_id="genetl_postgres")
     engine = postgres_hook.get_sqlalchemy_engine()
     return engine
 
