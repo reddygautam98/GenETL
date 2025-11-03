@@ -20,8 +20,14 @@ RUN apt-get update && apt-get install -y \
 RUN groupadd -r airflow && useradd -r -g airflow -d ${AIRFLOW_HOME} -s /bin/bash airflow
 
 # Install Python dependencies
-COPY requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+COPY requirements.txt constraints.txt /tmp/
+RUN pip install --upgrade pip setuptools wheel
+
+# Try to install with binary-only first, fallback to binary-preferred
+RUN pip install --no-cache-dir --prefer-binary --constraint /tmp/constraints.txt \
+    --only-binary=:all: -r /tmp/requirements.txt || \
+    pip install --no-cache-dir --prefer-binary --constraint /tmp/constraints.txt \
+    -r /tmp/requirements.txt
 
 # Install additional packages if specified
 COPY packages.txt /tmp/packages.txt

@@ -21,6 +21,10 @@ redis>=5.0.0
 scikit-learn
 openai
 
+# Constraints to prevent build issues in CI
+# Prevent google-re2 from being installed if it has build issues
+# Use binary distributions only
+
 # Development and testing dependencies
 pytest
 pytest-cov

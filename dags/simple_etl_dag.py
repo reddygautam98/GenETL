@@ -24,13 +24,13 @@ default_args = {
     "retry_delay": timedelta(minutes=5),
 }
 
-# Database configuration
+# Database configuration - Updated to use existing Airflow database
 DB_CONFIG = {
-    "host": "genetl-postgres",
+    "host": "postgres",
     "port": 5432,
-    "database": "genetl_warehouse",
-    "user": "genetl",
-    "password": "genetl_pass",
+    "database": "airflow",
+    "user": "airflow",
+    "password": "airflow",
 }
 
 
@@ -44,47 +44,55 @@ def check_data_availability(**context):
     """Check if source data is available"""
     logging.info("Checking data availability...")
 
-    engine = get_db_engine()
+    try:
+        engine = get_db_engine()
 
-    # Check if staging table has data
-    query = "SELECT COUNT(*) as count FROM staging.products_raw"
-    result = pd.read_sql(query, engine)
-    count = result.iloc[0]["count"]
+        # Check if staging table has data
+        query = "SELECT COUNT(*) as count FROM staging.products_raw"
+        result = pd.read_sql(query, engine)
+        count = result.iloc[0]["count"]
 
-    logging.info(f"Found {count} records in staging table")
+        logging.info(f"Found {count} records in staging table")
 
-    if count > 0:
-        logging.info("✅ Data available for processing")
-        return {"status": "success", "record_count": count}
-    else:
-        logging.warning("⚠️ No data found in staging")
-        return {"status": "no_data", "record_count": 0}
+        if count > 0:
+            logging.info("✅ Data available for processing")
+            return {"status": "success", "record_count": count}
+        else:
+            logging.warning("⚠️ No data found in staging")
+            return {"status": "no_data", "record_count": 0}
+    except Exception as e:
+        logging.error(f"❌ Error checking data availability: {str(e)}")
+        raise
 
 
 def load_to_warehouse(**context):
     """Load data from staging to warehouse"""
     logging.info("Loading data to warehouse...")
 
-    engine = get_db_engine()
+    try:
+        engine = get_db_engine()
 
-    # Get data from staging
-    staging_query = "SELECT * FROM staging.products_raw"
-    df = pd.read_sql(staging_query, engine)
+        # Get data from staging
+        staging_query = "SELECT * FROM staging.products_raw"
+        df = pd.read_sql(staging_query, engine)
 
-    logging.info(f"Loaded {len(df)} records from staging")
+        logging.info(f"Loaded {len(df)} records from staging")
 
-    # Simple transformation - ensure proper data types
-    if not df.empty:
-        # Load to warehouse (replace existing data)
-        df.to_sql(
-            "products", engine, schema="warehouse", if_exists="replace", index=False
-        )
+        # Simple transformation - ensure proper data types
+        if not df.empty:
+            # Load to warehouse (replace existing data)
+            df.to_sql(
+                "products", engine, schema="warehouse", if_exists="replace", index=False
+            )
 
-        logging.info(f"✅ Successfully loaded {len(df)} records to warehouse")
-        return {"status": "success", "records_processed": len(df)}
-    else:
-        logging.warning("No records to process")
-        return {"status": "no_data", "records_processed": 0}
+            logging.info(f"✅ Successfully loaded {len(df)} records to warehouse")
+            return {"status": "success", "records_processed": len(df)}
+        else:
+            logging.warning("No records to process")
+            return {"status": "no_data", "records_processed": 0}
+    except Exception as e:
+        logging.error(f"❌ Error loading data to warehouse: {str(e)}")
+        raise
 
 
 def run_data_quality_checks(**context):
