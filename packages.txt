@@ -1,5 +1,13 @@
-git
+# System packages required for GenETL Platform
+# Data processing and ETL tools
 curl
-wget
-unzip
+git
 vim
+htop
+
+# Database clients
+postgresql-client
+redis-tools
+
+# Build tools for Python packages
+build-essential

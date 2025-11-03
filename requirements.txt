@@ -1,12 +1,8 @@
 # GenETL Dependencies
-# Core Airflow and extensions (using Astro runtime version)
-apache-airflow==2.7.1
-apache-airflow-providers-postgres
-apache-airflow-providers-redis
-
-# Fix compatibility issues with Airflow 2.7.1 and Python 3.8+
-# Removed structlog constraint - let Airflow manage its dependencies
-# structlog<24.0.0
+# Astro runtime already includes Apache Airflow and core providers
+# Only add additional providers if needed
+# apache-airflow-providers-postgres  # Already included in Astro runtime
+# apache-airflow-providers-redis     # Already included in Astro runtime
 
 # Data processing and ETL dependencies
 pandas
@@ -33,4 +29,4 @@ isort
 flake8
 mypy
 safety
-bandit
+bandit

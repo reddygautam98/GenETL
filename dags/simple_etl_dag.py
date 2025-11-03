@@ -7,11 +7,9 @@ import logging
 from datetime import datetime, timedelta
 
 import pandas as pd
-import psycopg2
 from airflow import DAG
-from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
-from sqlalchemy import create_engine
+from airflow.hooks.postgres_hook import PostgresHook
 
 # Default arguments for the DAG
 default_args = {
@@ -24,20 +22,14 @@ default_args = {
     "retry_delay": timedelta(minutes=5),
 }
 
-# Database configuration - Updated to use existing Airflow database
-DB_CONFIG = {
-    "host": "postgres",
-    "port": 5432,
-    "database": "airflow",
-    "user": "airflow",
-    "password": "airflow",
-}
+# Database configuration - Use Airflow connections
 
 
 def get_db_engine():
-    """Create database engine"""
-    connection_string = f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
-    return create_engine(connection_string)
+    """Create database engine using Airflow connection"""
+    postgres_hook = PostgresHook(postgres_conn_id='genetl_postgres')
+    engine = postgres_hook.get_sqlalchemy_engine()
+    return engine
 
 
 def check_data_availability(**context):

@@ -4,6 +4,7 @@ Sets up schemas and test data for the ETL pipeline
 """
 
 import logging
+
 import pandas as pd
 from airflow.hooks.postgres_hook import PostgresHook
 
