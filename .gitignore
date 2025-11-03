@@ -119,8 +119,12 @@ credentials/
 
 # GenETL specific test files
 check_db_schema.py
-test_ai_*.py
+test_ai_demo.py
+test_ai_experimental_*.py
 demo_ai_*.py
+
+# Allow basic AI test file for CI/CD
+!test_ai_basic.py
 
 # Backup files
 *.bak
