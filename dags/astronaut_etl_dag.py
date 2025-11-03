@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 import requests
 from airflow import DAG
-from airflow.decorators import task
+from airflow.decorators import task  # type: ignore[attr-defined]
 from airflow.operators.python import PythonOperator
 
 # Default arguments
