@@ -1,7 +1,7 @@
 # CI/CD Compatible Dockerfile
-# Uses Python 3.13 to match GitHub Actions workflow
+# Uses Python 3.8 to match Airflow 2.7.1 compatibility
 
-FROM python:3.13-slim
+FROM python:3.8-slim
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1

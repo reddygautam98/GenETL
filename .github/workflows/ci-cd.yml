@@ -22,7 +22,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.13'
+        python-version: '3.8'
     
     - name: Cache pip packages
       uses: actions/cache@v3
@@ -90,7 +90,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.13'
+        python-version: '3.8'
     
     - name: Cache pip packages
       uses: actions/cache@v3
@@ -231,7 +231,7 @@ jobs:
 
   security-scan:
     runs-on: ubuntu-latest
-    name: Security Scanning
+    name: Security Scan
     
     steps:
     - uses: actions/checkout@v4
@@ -239,7 +239,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.13'
+        python-version: '3.8'
     
     - name: Install security tools
       run: |
@@ -322,7 +322,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.13'
+        python-version: '3.8'
     
     - name: Generate changelog
       id: changelog

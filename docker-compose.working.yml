@@ -1,8 +1,6 @@
 # GenETL Working Docker Setup
 # Simplified configuration that works reliably
 
-version: '3.8'
-
 x-airflow-common: &airflow-common
   image: apache/airflow:2.7.1
   environment: &airflow-common-env

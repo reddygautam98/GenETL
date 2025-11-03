@@ -1,7 +1,12 @@
 # GenETL Dependencies
 # Core Airflow and extensions (using Astro runtime version)
+apache-airflow==2.7.1
 apache-airflow-providers-postgres
 apache-airflow-providers-redis
+
+# Fix compatibility issues with Airflow 2.7.1 and Python 3.8+
+# Pin structlog to avoid import errors in newer versions
+structlog<24.0.0
 
 # Data processing and ETL dependencies
 pandas
